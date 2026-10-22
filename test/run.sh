@@ -53,6 +53,12 @@ get_user() { # repo [extra credential lines]
 
 BASE_PATH="$PATH"
 
+# A remote URL with a made-up token in it. It's assembled from variables so
+# secret scanners don't mistake the test file for a leaked credential.
+FAKE_USER="x-access-token"
+FAKE_TOKEN="not-a-real-token"
+TOKEN_URL="https://${FAKE_USER}:${FAKE_TOKEN}@github.com/mycompany/api.git"
+
 fresh
 check "version" "git-found $(sed -n 's/^VERSION="\(.*\)"/\1/p' "$ROOT/git-credential-found")" "$("$F" version)"
 
@@ -64,8 +70,8 @@ check "remembers the choice" "mycompany/api -> sam-work (cached)" "$("$F" which 
 check "forget makes it check again" "mycompany/api -> sam-work (push)" "$("$F" which mycompany/api)"
 
 for url in mycompany/api https://github.com/mycompany/api.git https://github.com/mycompany/api/tree/main \
-  git@github.com:mycompany/api.git ssh://git@github.com/mycompany/api.git https://x-access-token:secret@github.com/mycompany/api.git; do
-  check "reads $url" "mycompany/api" "$("$F" which "$url" | sed 's/ ->.*//')"
+  git@github.com:mycompany/api.git ssh://git@github.com/mycompany/api.git "$TOKEN_URL"; do
+  check "reads ${url/$FAKE_TOKEN/***}" "mycompany/api" "$("$F" which "$url" | sed 's/ ->.*//')"
 done
 
 fresh
@@ -143,8 +149,12 @@ contains "doctor confirms Git asks git-found" "Git asks git-found, which picks s
 out=$("$F" doctor git@github.com:mycompany/api.git); code=$?
 check "doctor fails an SSH remote" "1" "$code"
 contains "doctor explains the SSH fix" "git remote set-url origin https://github.com/mycompany/api.git" "$out"
-contains "doctor never prints a token from the URL" "set-url origin https://github.com/mycompany/api.git" \
-  "$("$F" doctor https://u:secret@github.com/mycompany/api.git)"
+out=$("$F" doctor "$TOKEN_URL")
+contains "doctor gives a clean URL for a remote with a token" "set-url origin https://github.com/mycompany/api.git" "$out"
+case "$out" in
+  *"$FAKE_TOKEN"*) FAIL=$((FAIL + 1)); echo "FAIL doctor never prints a token from the URL" ;;
+  *) PASS=$((PASS + 1)); echo "ok   doctor never prints a token from the URL" ;;
+esac
 
 fresh
 printf '[credential "https://github.com"]\n\thelper =\n\thelper = !gh auth git-credential\n' >> "$GIT_CONFIG_GLOBAL"
