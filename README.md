@@ -47,9 +47,11 @@ git-credential-found setup
 ```ini
 [credential "https://github.com"]
     helper =
-    helper = found
+    helper = /Users/you/.local/bin/git-credential-found
     useHttpPath = true
 ```
+
+It uses the full path so GUI apps like GitHub Desktop and IntelliJ find it too.
 
 </details>
 
