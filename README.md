@@ -5,7 +5,7 @@
 
 A Git credential helper for people with more than one GitHub account. It checks which of your accounts can reach a repo and gives Git that account's token.
 
-If you have a personal and a work account signed in to the GitHub CLI, you've probably seen this on a repo you definitely have access to:
+If you have multiple GitHub accounts, you've probably seen this on a repo you definitely have access to:
 
 ```console
 $ git clone https://github.com/mycompany/backend.git
