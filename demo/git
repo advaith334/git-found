@@ -1,0 +1,28 @@
+#!/bin/sh
+# Demo-only stand-in for git. `git clone` asks real Git for a login (so the
+# real credential helpers, including git-found, decide the account), then
+# fakes the network: it succeeds only if STUB_ACCESS lets that account in.
+# Everything else goes to real Git.
+
+if [ "$1" = clone ]; then
+  url="$2"
+  repo="${url#https://github.com/}"
+  repo="${repo%.git}"
+  echo "Cloning into '${repo#*/}'..."
+  user=$(printf 'protocol=https\nhost=github.com\npath=%s.git\n\n' "$repo" \
+    | "$REAL_GIT" credential fill 2>/dev/null | sed -n 's/^username=//p')
+  case " $STUB_ACCESS " in
+    *" $user:$repo:"*)
+      sleep 0.4
+      echo "remote: Enumerating objects: 1284, done."
+      echo "remote: Total 1284 (delta 0), reused 0 (delta 0), pack-reused 1284"
+      echo "Receiving objects: 100% (1284/1284), 2.10 MiB | 9.80 MiB/s, done."
+      mkdir -p "${repo#*/}"
+      exit 0 ;;
+  esac
+  echo "remote: Repository not found."
+  echo "fatal: repository '$url/' not found"
+  exit 128
+fi
+
+exec "$REAL_GIT" "$@"

@@ -1,5 +1,8 @@
 # git-found
 
+[![CI](https://github.com/advaith334/git-found/actions/workflows/ci.yml/badge.svg)](https://github.com/advaith334/git-found/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Stop `remote: Repository not found`.** git-found picks the right GitHub account for every repo, automatically.
 
 ```console
@@ -12,10 +15,9 @@ The repo exists. You have access. Git just signed in with the **wrong account**:
 
 git-found fixes that. Keep all your accounts signed in to the GitHub CLI, and Git uses the one that can actually reach each repo. No `gh auth switch`, no SSH host aliases, no `includeIf` blocks per org.
 
-```console
-$ git-credential-found which acme-corp/api
-acme-corp/api -> alice-work (push)
-```
+![Cloning fails with the active account, then works after git-found setup](demo/demo.gif)
+
+<sub>Demo with example accounts. It runs the real git-found script; gh and GitHub are stand-ins (see [demo/](demo/)).</sub>
 
 ## Install
 
@@ -25,16 +27,28 @@ You need the [GitHub CLI](https://cli.github.com) (`gh`) with each of your accou
 gh auth login   # repeat for every account
 ```
 
-Then install git-found:
+Then install git-found with Homebrew:
+
+```bash
+brew install advaith334/tap/git-found
+git-credential-found setup
+```
+
+`setup` tells Git to use git-found for every host you're signed in to with `gh` (usually just `github.com`).
+
+<details>
+<summary>Install without Homebrew</summary>
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/advaith334/git-found/main/install.sh | sh
 ```
 
-That puts `git-credential-found` in `~/.local/bin` and tells Git to use it for every host you're signed in to with `gh` (usually just `github.com`).
+That puts `git-credential-found` in `~/.local/bin` and runs `setup` for you.
+
+</details>
 
 <details>
-<summary>Install by hand instead</summary>
+<summary>Install by hand</summary>
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/advaith334/git-found/main/git-credential-found -o ~/.local/bin/git-credential-found
@@ -171,7 +185,7 @@ Bash (macOS's built-in 3.2 is fine), Git and the GitHub CLI.
 
 ## Contributing
 
-Issues and pull requests are welcome. If you've lost an afternoon to `Repository not found`, a ⭐ helps other people find this.
+Issues and pull requests are welcome. Run the tests with `test/run.sh`; they use a stand-in `gh`, so they need no network or GitHub accounts. If you've lost an afternoon to `Repository not found`, a ⭐ helps other people find this.
 
 ## License
 

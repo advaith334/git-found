@@ -1,0 +1,41 @@
+#!/bin/sh
+# A stand-in for the GitHub CLI, used by the tests and the demo.
+#
+# Accounts come from $GH_CONFIG_DIR/hosts.yml, like the real gh.
+# Access comes from STUB_ACCESS: space-separated login:owner/repo:perm entries,
+# where perm is push, pull, sso or expired, and owner/repo may be "*".
+
+access_for() { # login repo
+  for entry in ${STUB_ACCESS:-}; do
+    login="${entry%%:*}"; rest="${entry#*:}"; repo="${rest%:*}"; perm="${rest##*:}"
+    [ "$login" = "$1" ] || continue
+    if [ "$repo" = "$2" ] || [ "$repo" = "*" ]; then echo "$perm"; return; fi
+  done
+  echo none
+}
+
+active_user() {
+  awk '/^    user:/ { print $2; exit }' "$GH_CONFIG_DIR/hosts.yml"
+}
+
+case "$1 $2" in
+  "auth token")
+    user=""
+    while [ $# -gt 0 ]; do [ "$1" = --user ] && user="$2"; shift; done
+    [ -n "$user" ] || user=$(active_user)
+    echo "tok-$user" ;;
+  "auth git-credential")
+    cat >/dev/null
+    printf 'username=%s\npassword=tok-%s\n' "$(active_user)" "$(active_user)" ;;
+  "api -i")
+    repo=""
+    for arg in "$@"; do case "$arg" in repos/*) repo="${arg#repos/}" ;; esac; done
+    case "$(access_for "${GH_TOKEN#tok-}" "$repo")" in
+      push) printf 'HTTP/2.0 200 OK\r\n\r\ntrue\n' ;;
+      pull) printf 'HTTP/2.0 200 OK\r\n\r\nfalse\n' ;;
+      sso) printf 'HTTP/2.0 403 Forbidden\r\nX-Github-Sso: required; url=https://github.com/orgs/%s/sso?authorization_request=TEST\r\n\r\n{"message":"Resource protected by organization SAML enforcement."}\n' "${repo%%/*}" ;;
+      expired) printf 'HTTP/2.0 401 Unauthorized\r\n\r\n{"message":"Bad credentials"}\n' ;;
+      *) printf 'HTTP/2.0 404 Not Found\r\n\r\n{"message":"Not Found"}\n' ;;
+    esac ;;
+  *) echo "stub gh: unsupported: $*" >&2; exit 1 ;;
+esac
