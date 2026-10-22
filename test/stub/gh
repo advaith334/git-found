@@ -24,6 +24,15 @@ case "$1 $2" in
     while [ $# -gt 0 ]; do [ "$1" = --user ] && user="$2"; shift; done
     [ -n "$user" ] || user=$(active_user)
     echo "tok-$user" ;;
+  "auth status")
+    # Short form of gh's own output, for the demo. No JSON: callers must use hosts.yml.
+    case " $* " in *" --json "*) exit 1 ;; esac
+    active=$(active_user)
+    echo "github.com"
+    awk '/^        [^ ]/ { sub(/:.*/, ""); print $1 }' "$GH_CONFIG_DIR/hosts.yml" | while read -r user; do
+      printf '  \033[32m✓\033[0m Logged in to github.com account \033[1m%s\033[0m (keyring)\n' "$user"
+      if [ "$user" = "$active" ]; then echo "  - Active account: true"; else echo "  - Active account: false"; fi
+    done ;;
   "auth git-credential")
     cat >/dev/null
     printf 'username=%s\npassword=tok-%s\n' "$(active_user)" "$(active_user)" ;;

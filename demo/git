@@ -15,8 +15,9 @@ if [ "$1" = clone ]; then
     *" $user:$repo:"*)
       sleep 0.4
       echo "remote: Enumerating objects: 1284, done."
-      echo "remote: Total 1284 (delta 0), reused 0 (delta 0), pack-reused 1284"
+      echo "remote: Total 1284 (delta 671), reused 1190 (delta 590), pack-reused 0"
       echo "Receiving objects: 100% (1284/1284), 2.10 MiB | 9.80 MiB/s, done."
+      echo "Resolving deltas: 100% (671/671), done."
       mkdir -p "${repo#*/}"
       exit 0 ;;
   esac

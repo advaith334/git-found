@@ -25,9 +25,9 @@ fresh() {
 github.com:
     git_protocol: https
     users:
-        alice:
-        alice-work:
-    user: alice
+        sam:
+        sam-work:
+    user: sam
 EOF
 }
 
@@ -57,65 +57,65 @@ fresh
 check "version" "git-found $(sed -n 's/^VERSION="\(.*\)"/\1/p' "$ROOT/git-credential-found")" "$("$F" version)"
 
 fresh
-export STUB_ACCESS="alice-work:acme/api:push"
-check "picks the account that can see the repo" "acme/api -> alice-work (push)" "$("$F" which acme/api)"
-check "remembers the choice" "acme/api -> alice-work (cached)" "$("$F" which acme/api)"
-"$F" forget acme/api >/dev/null
-check "forget makes it check again" "acme/api -> alice-work (push)" "$("$F" which acme/api)"
+export STUB_ACCESS="sam-work:mycompany/api:push"
+check "picks the account that can see the repo" "mycompany/api -> sam-work (push)" "$("$F" which mycompany/api)"
+check "remembers the choice" "mycompany/api -> sam-work (cached)" "$("$F" which mycompany/api)"
+"$F" forget mycompany/api >/dev/null
+check "forget makes it check again" "mycompany/api -> sam-work (push)" "$("$F" which mycompany/api)"
 
-for url in acme/api https://github.com/acme/api.git https://github.com/acme/api/tree/main \
-  git@github.com:acme/api.git ssh://git@github.com/acme/api.git https://x-access-token:secret@github.com/acme/api.git; do
-  check "reads $url" "acme/api" "$("$F" which "$url" | sed 's/ ->.*//')"
+for url in mycompany/api https://github.com/mycompany/api.git https://github.com/mycompany/api/tree/main \
+  git@github.com:mycompany/api.git ssh://git@github.com/mycompany/api.git https://x-access-token:secret@github.com/mycompany/api.git; do
+  check "reads $url" "mycompany/api" "$("$F" which "$url" | sed 's/ ->.*//')"
 done
 
 fresh
-export STUB_ACCESS="alice:acme/api:pull alice-work:acme/api:push"
-check "prefers push over pull" "acme/api -> alice-work (push)" "$("$F" which acme/api)"
+export STUB_ACCESS="sam:mycompany/api:pull sam-work:mycompany/api:push"
+check "prefers push over pull" "mycompany/api -> sam-work (push)" "$("$F" which mycompany/api)"
 
 fresh
-export STUB_ACCESS="alice:acme/api:pull alice-work:acme/api:pull"
-check "falls back to read access" "acme/api -> alice (pull)" "$("$F" which acme/api)"
+export STUB_ACCESS="sam:mycompany/api:pull sam-work:mycompany/api:pull"
+check "falls back to read access" "mycompany/api -> sam (pull)" "$("$F" which mycompany/api)"
 
 fresh
-export STUB_ACCESS="alice:alice-work/tool:push alice-work:alice-work/tool:push"
-check "tries the owner's account first" "alice-work/tool -> alice-work (push)" "$("$F" which alice-work/tool)"
+export STUB_ACCESS="sam:sam-work/tool:push sam-work:sam-work/tool:push"
+check "tries the owner's account first" "sam-work/tool -> sam-work (push)" "$("$F" which sam-work/tool)"
 
 fresh
-out=$("$F" which acme/secret 2>&1)
+out=$("$F" which mycompany/secret 2>&1)
 contains "says when no account can see the repo" "none of your gh accounts on github.com" "$out"
-contains "falls back to the active account" "acme/secret -> alice (fallback)" "$out"
+contains "falls back to the active account" "mycompany/secret -> sam (fallback)" "$out"
 
 fresh
-export STUB_ACCESS="alice-work:acme/api:sso"
-out=$("$F" which acme/api 2>&1)
-contains "detects SSO" "acme/api -> alice-work (sso)" "$out"
-contains "prints the SSO approval link" "https://github.com/orgs/acme/sso?authorization_request=TEST" "$out"
-check "doesn't remember an SSO block" "acme/api -> alice-work (sso)" "$("$F" which acme/api 2>/dev/null)"
+export STUB_ACCESS="sam-work:mycompany/api:sso"
+out=$("$F" which mycompany/api 2>&1)
+contains "detects SSO" "mycompany/api -> sam-work (sso)" "$out"
+contains "prints the SSO approval link" "https://github.com/orgs/mycompany/sso?authorization_request=TEST" "$out"
+check "doesn't remember an SSO block" "mycompany/api -> sam-work (sso)" "$("$F" which mycompany/api 2>/dev/null)"
 
 fresh
-export STUB_ACCESS="alice-work:*:expired"
-contains "flags an expired login" "the saved login for alice-work has expired" "$("$F" which acme/api 2>&1)"
+export STUB_ACCESS="sam-work:*:expired"
+contains "flags an expired login" "the saved login for sam-work has expired" "$("$F" which mycompany/api 2>&1)"
 
 fresh
-export STUB_ACCESS="alice-work:acme/api:push"
-check "credential get returns the right account" "alice-work" "$(get_user acme/api)"
-check "credential get gives a token" "password=tok-alice-work" \
-  "$(printf 'protocol=https\nhost=github.com\npath=acme/api.git\n\n' | "$F" get | grep '^password=')"
-check "a username in the URL wins" "alice" "$(get_user acme/api username=alice)"
+export STUB_ACCESS="sam-work:mycompany/api:push"
+check "credential get returns the right account" "sam-work" "$(get_user mycompany/api)"
+check "credential get gives a token" "password=tok-sam-work" \
+  "$(printf 'protocol=https\nhost=github.com\npath=mycompany/api.git\n\n' | "$F" get | grep '^password=')"
+check "a username in the URL wins" "sam" "$(get_user mycompany/api username=sam)"
 check "ignores other hosts" "" "$(printf 'protocol=https\nhost=gitlab.com\npath=a/b.git\n\n' | "$F" get)"
 check "ignores plain http" "" "$(printf 'protocol=http\nhost=github.com\npath=a/b.git\n\n' | "$F" get)"
-check "uses the active account without a path" "alice" \
+check "uses the active account without a path" "sam" \
   "$(printf 'protocol=https\nhost=github.com\n\n' | "$F" get | sed -n 's/^username=//p')"
-printf 'protocol=https\nhost=github.com\npath=acme/api.git\n\n' | "$F" erase
-check "erase forgets the account" "acme/api -> alice-work (push)" "$("$F" which acme/api)"
+printf 'protocol=https\nhost=github.com\npath=mycompany/api.git\n\n' | "$F" erase
+check "erase forgets the account" "mycompany/api -> sam-work (push)" "$("$F" which mycompany/api)"
 
 fresh
-export STUB_ACCESS="alice:acme/api:push alice-work:acme/api:push"
-git init -q "$TMP/repo" && git -C "$TMP/repo" remote add origin https://github.com/acme/api.git
-git -C "$TMP/repo" config found.account alice-work
-check "a pin picks the account" "acme/api -> alice-work (pinned)" "$(cd "$TMP/repo" && "$F" which)"
-check "credential get honours the pin" "alice-work" "$(cd "$TMP/repo" && get_user acme/api)"
-check "a pin only applies to the repo's own remotes" "alice" "$(cd "$TMP/repo" && get_user acme/other)"
+export STUB_ACCESS="sam:mycompany/api:push sam-work:mycompany/api:push"
+git init -q "$TMP/repo" && git -C "$TMP/repo" remote add origin https://github.com/mycompany/api.git
+git -C "$TMP/repo" config found.account sam-work
+check "a pin picks the account" "mycompany/api -> sam-work (pinned)" "$(cd "$TMP/repo" && "$F" which)"
+check "credential get honours the pin" "sam-work" "$(cd "$TMP/repo" && get_user mycompany/api)"
+check "a pin only applies to the repo's own remotes" "sam" "$(cd "$TMP/repo" && get_user mycompany/other)"
 git -C "$TMP/repo" config found.account nobody
 contains "an unknown pin is ignored with a warning" "found.account is nobody" "$(cd "$TMP/repo" && "$F" which 2>&1)"
 
@@ -135,22 +135,22 @@ check "setup turns on useHttpPath" "true" "$(git config --global credential.http
 check "uninstall removes every host" "" "$(git config --global --get-regexp '^credential\.' || true)"
 
 fresh
-export STUB_ACCESS="alice-work:acme/api:push"
+export STUB_ACCESS="sam-work:mycompany/api:push"
 "$F" setup >/dev/null
-out=$("$F" doctor https://github.com/acme/api.git); code=$?
+out=$("$F" doctor https://github.com/mycompany/api.git); code=$?
 check "doctor passes a healthy repo" "0" "$code"
-contains "doctor confirms Git asks git-found" "Git asks git-found, which picks alice-work" "$out"
-out=$("$F" doctor git@github.com:acme/api.git); code=$?
+contains "doctor confirms Git asks git-found" "Git asks git-found, which picks sam-work" "$out"
+out=$("$F" doctor git@github.com:mycompany/api.git); code=$?
 check "doctor fails an SSH remote" "1" "$code"
-contains "doctor explains the SSH fix" "git remote set-url origin https://github.com/acme/api.git" "$out"
-contains "doctor never prints a token from the URL" "set-url origin https://github.com/acme/api.git" \
-  "$("$F" doctor https://u:secret@github.com/acme/api.git)"
+contains "doctor explains the SSH fix" "git remote set-url origin https://github.com/mycompany/api.git" "$out"
+contains "doctor never prints a token from the URL" "set-url origin https://github.com/mycompany/api.git" \
+  "$("$F" doctor https://u:secret@github.com/mycompany/api.git)"
 
 fresh
 printf '[credential "https://github.com"]\n\thelper =\n\thelper = !gh auth git-credential\n' >> "$GIT_CONFIG_GLOBAL"
-export STUB_ACCESS="alice-work:acme/api:push"
-out=$("$F" doctor acme/api)
-contains "doctor spots another helper answering first" "another credential helper answers first: Git got alice" "$out"
+export STUB_ACCESS="sam-work:mycompany/api:push"
+out=$("$F" doctor mycompany/api)
+contains "doctor spots another helper answering first" "another credential helper answers first: Git got sam" "$out"
 contains "doctor spots useHttpPath off" "useHttpPath is off" "$out"
 
 echo

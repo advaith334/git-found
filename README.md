@@ -3,52 +3,49 @@
 [![CI](https://github.com/advaith334/git-found/actions/workflows/ci.yml/badge.svg)](https://github.com/advaith334/git-found/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Stop `remote: Repository not found`.** git-found picks the right GitHub account for every repo, automatically.
+A Git credential helper for people with more than one GitHub account. It checks which of your accounts can reach a repo and gives Git that account's token.
+
+If you have a personal and a work account signed in to the GitHub CLI, you've probably seen this on a repo you definitely have access to:
 
 ```console
-$ git push
+$ git clone https://github.com/mycompany/backend.git
 remote: Repository not found.
-fatal: repository 'https://github.com/acme-corp/api.git/' not found
+fatal: repository 'https://github.com/mycompany/backend.git/' not found
 ```
 
-The repo exists. You have access. Git just signed in with the **wrong account**: your personal one instead of your work one, or the other way around.
+Git sent the token for whichever account is active in `gh`, and that account can't see the repo. git-found makes Git use the account that can.
 
-git-found fixes that. Keep all your accounts signed in to the GitHub CLI, and Git uses the one that can actually reach each repo. No `gh auth switch`, no SSH host aliases, no `includeIf` blocks per org.
+![gh is signed in to sam and sam-work, cloning a work repo fails, then works after git-found setup](demo/demo.gif)
 
-![Cloning fails with the active account, then works after git-found setup](demo/demo.gif)
-
-<sub>Demo with example accounts. It runs the real git-found script; gh and GitHub are stand-ins (see [demo/](demo/)).</sub>
+<sub>The demo uses made-up accounts. git-found is the real script; `gh` and GitHub are stand-ins (see [demo/](demo/)).</sub>
 
 ## Install
 
-You need the [GitHub CLI](https://cli.github.com) (`gh`) with each of your accounts signed in:
+Sign in to the GitHub CLI with each of your accounts first:
 
 ```bash
-gh auth login   # repeat for every account
+gh auth login   # once per account
 ```
 
-Then install git-found with Homebrew:
+Then:
 
 ```bash
 brew install advaith334/tap/git-found
 git-credential-found setup
 ```
 
-`setup` tells Git to use git-found for every host you're signed in to with `gh` (usually just `github.com`).
+`setup` points Git at git-found for every host you're signed in to with `gh` (usually just github.com).
 
 <details>
-<summary>Install without Homebrew</summary>
+<summary>Without Homebrew</summary>
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/advaith334/git-found/main/install.sh | sh
 ```
 
-That puts `git-credential-found` in `~/.local/bin` and runs `setup` for you.
+This puts `git-credential-found` in `~/.local/bin` and runs `setup`.
 
-</details>
-
-<details>
-<summary>Install by hand</summary>
+Or copy the script yourself:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/advaith334/git-found/main/git-credential-found -o ~/.local/bin/git-credential-found
@@ -56,7 +53,7 @@ chmod +x ~/.local/bin/git-credential-found
 git-credential-found setup
 ```
 
-`setup` adds this to your `~/.gitconfig`:
+`setup` adds this to `~/.gitconfig`:
 
 ```ini
 [credential "https://github.com"]
@@ -65,127 +62,126 @@ git-credential-found setup
     useHttpPath = true
 ```
 
-It uses the full path so GUI apps like GitHub Desktop and IntelliJ find it too.
+It writes the full path so GUI apps like GitHub Desktop and IntelliJ can find it.
 
 </details>
 
-## How it works
+## How it picks an account
 
-When Git needs a password for a repo, git-found:
+When Git asks for a password, git-found goes through these in order:
 
-1. **Uses the account you pinned** for that repo, if you pinned one (see below).
-2. **Uses your remembered choice** for that repo, if there is one (kept for a day).
-3. **Tries the account named like the repo owner** first: `alice-work/tool` tries `alice-work`.
-4. **Asks the GitHub API** which of your accounts can see the repo, preferring one that can push.
-5. **Hands Git that account's token** and remembers the choice.
+1. The account you pinned for the repo, if any.
+2. The account it picked for that repo in the last 24 hours.
+3. The account whose name matches the repo owner (`sam-work/tool` tries `sam-work` first).
+4. Otherwise it asks the GitHub API which of your accounts can see the repo, and prefers one that can push.
 
-If none of your accounts can see the repo, it tells you so instead of leaving you with a vague 404:
+If none of them can see it, you get a clear message instead of a bare 404:
 
 ```console
-git-found: none of your gh accounts on github.com (alice, alice-work) can see acme-corp/secret.
+git-found: none of your gh accounts on github.com (sam, sam-work) can see mycompany/secret.
 git-found: check the URL, or add an account that has access with: gh auth login --hostname github.com
 ```
 
-If the right account is blocked by the org's single sign-on (SSO), it says that too, with the link to approve the token:
+If the right account is blocked by the org's single sign-on, it tells you and prints the link to approve the token:
 
 ```console
-git-found: alice-work can reach acme-corp/api, but its token isn't approved for the org's single sign-on.
-git-found: approve it here, then try again: https://github.com/orgs/acme-corp/sso?authorization_request=...
+git-found: sam-work can reach mycompany/backend, but its token isn't approved for the org's single sign-on.
+git-found: approve it here, then try again: https://github.com/orgs/mycompany/sso?authorization_request=...
 ```
 
-### Why Git can't do this on its own
+### Why Git doesn't handle this already
 
-GitHub returns **404, not 401**, when you're signed in but your account can't see a private repo. Git only throws away a password and asks again after a 401, so it never tries your other accounts. And the GitHub CLI's helper always returns the token of whichever account is active ([cli/cli#326](https://github.com/cli/cli/issues/326), open since 2020).
+GitHub answers 404 rather than 401 when you're signed in but your account can't see a private repo. Git only retries with other credentials after a 401, so it never gets to your second account. The GitHub CLI's own helper only ever returns the active account's token ([cli/cli#326](https://github.com/cli/cli/issues/326) has been open since 2020).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `git-credential-found setup [host...]` | Make Git use git-found (default: every host `gh` is signed in to) |
-| `git-credential-found which [url]` | Show which account git-found picks for a repo |
-| `git-credential-found doctor [url]` | Explain why a repo still fails, with a fix for each problem |
-| `git-credential-found forget [url]` | Forget the remembered account for one repo, or all |
+| `git-credential-found setup [host...]` | Point Git at git-found (default: every host `gh` is signed in to) |
+| `git-credential-found which [url]` | Show which account it would use for a repo |
+| `git-credential-found doctor [url]` | Check why a repo still fails |
+| `git-credential-found forget [url]` | Clear the remembered account for one repo, or all of them |
 | `git-credential-found uninstall [host...]` | Remove git-found from your Git config |
 
-URLs can be `owner/repo`, an HTTPS URL or an SSH URL. Without one, `which` and `doctor` check the current repo's `origin`.
+A URL can be `owner/repo`, an HTTPS URL or an SSH URL. Without one, `which` and `doctor` use the current repo's `origin`.
 
-### Still failing? Run `doctor`
+### doctor
 
 ```console
 $ git-credential-found doctor
-git-found 0.2.0 doctor: acme-corp/api on github.com
+git-found 0.2.1 doctor: mycompany/backend on github.com
 
 Remote URL
-  ✗ git@github.com:acme-corp/api.git uses SSH, and Git only asks credential helpers for HTTPS logins
-    fix: git remote set-url origin https://github.com/acme-corp/api.git
+  ✗ git@github.com:mycompany/backend.git uses SSH, and Git only asks credential helpers for HTTPS logins
+    fix: git remote set-url origin https://github.com/mycompany/backend.git
 
 Accounts on github.com
-    · alice can't see this repo
-  ✓ alice-work can push
+    · sam can't see this repo
+  ✓ sam-work can push
 
 Git config
   ✓ useHttpPath is on, so git-found can see which repo Git wants
-  ✓ Git asks git-found, which picks alice-work (push)
+  ✓ Git asks git-found, which picks sam-work (push)
 
 1 problem(s) found.
 ```
 
-It checks the remote URL (SSH, or a token baked into it), each account's access, expired logins, SSO approval, your pin, and whether another credential helper answers before git-found.
+It looks at the remote URL (SSH, or a token stuck in it), what each account can do, expired logins, single sign-on, your pin, and whether some other credential helper answers before git-found.
 
-### Pin a repo to one account
+### Pinning
 
-If you can reach a repo from two accounts and want a specific one, pin it from inside the repo:
+If two of your accounts can reach a repo and you want a specific one, set it inside the repo:
 
 ```bash
-git config found.account alice-work
+git config found.account sam-work
 ```
 
-The pin only applies to that repo's own remotes, so cloning something else from inside it isn't affected. A username in the URL (`https://alice@github.com/...`) also works and wins over everything.
+The pin only applies to that repo's own remotes, so cloning something else from inside it isn't affected. A username in the URL (`https://sam@github.com/...`) overrides everything.
 
-Set `GIT_FOUND_DEBUG=1` to see every decision:
+### Debug output
 
 ```console
 $ GIT_FOUND_DEBUG=1 git fetch
-git-found: acme-corp/api as alice: none
-git-found: acme-corp/api as alice-work: push
+git-found: mycompany/backend as sam: none
+git-found: mycompany/backend as sam-work: push
 ```
 
-## Compared to the usual fixes
+## Other ways to deal with this
 
-| | Works per repo, automatically | No config per org | No SSH keys to manage |
-|---|:-:|:-:|:-:|
-| **git-found** | ✅ | ✅ | ✅ |
-| `gh auth switch` | ❌ manual, global | ✅ | ✅ |
-| `includeIf` + per-org helper | ✅ | ❌ | ✅ |
-| SSH host aliases | ✅ | ❌ rewrite every remote | ❌ |
-| Git Credential Manager | ❌ asks you to pick | ❌ | ✅ |
+| | Picks per repo automatically | No per-org config | No extra SSH keys |
+|---|---|---|---|
+| git-found | yes | yes | yes |
+| `gh auth switch` | no, you switch by hand, for everything | yes | yes |
+| `includeIf` with a helper per org | yes | no | yes |
+| SSH host aliases | yes | no, every remote needs rewriting | no |
+| Git Credential Manager | no, it asks you to pick | no | yes |
 
 ## FAQ
 
-**Is it safe?**
-git-found never stores tokens. They stay in the GitHub CLI's keyring, and git-found asks for them only when Git needs one. Tokens are passed through environment variables and pipes, never as command-line arguments. The only thing it writes to disk is which account goes with which repo, in `~/.cache/git-found/accounts`.
+**Where do the tokens live?**
+In the GitHub CLI's keyring, same as before. git-found reads one when Git needs it and never writes tokens anywhere. They're passed through environment variables and pipes, not command-line arguments. The only file it writes is `~/.cache/git-found/accounts`, which maps repos to account names.
 
-**Does it work with GitHub Enterprise?**
-Yes. Sign in with `gh auth login --hostname your.ghe.host`, then run `git-credential-found setup`. It sets up every host `gh` knows about.
+**GitHub Enterprise?**
+Yes. Run `gh auth login --hostname your.ghe.host`, then `git-credential-found setup`.
 
-**Does it work with SSH remotes?**
-No. git-found is a credential helper, and those only run for HTTPS. Switch a remote with `git remote set-url origin https://github.com/owner/repo.git`. `doctor` spots this for you.
+**SSH remotes?**
+No. Credential helpers only run for HTTPS. Switch with `git remote set-url origin https://github.com/owner/repo.git`; `doctor` will point this out.
 
 **It picked the wrong account.**
-Pin the one you want with `git config found.account <login>` inside the repo, or run `git-credential-found forget owner/repo` to make it check again.
+Pin the one you want with `git config found.account <login>`, or run `git-credential-found forget owner/repo` so it checks again.
 
-**What about `gh pr create`, commit emails or SSH keys?**
-Out of scope on purpose. git-found does one thing: makes Git's HTTPS logins use the right account. It never runs `gh` commands for you or changes your commits.
+**Can it pick the account for `gh pr create`, or fix my commit email?**
+No. git-found only handles Git's HTTPS logins, and it's going to stay that way.
 
 **How do I remove it?**
-Run `git-credential-found uninstall`, then `gh auth setup-git` to go back to the GitHub CLI's own helper.
+`git-credential-found uninstall`, then `gh auth setup-git` to go back to the GitHub CLI's helper.
 
-**What does it need?**
-Bash (macOS's built-in 3.2 is fine), Git and the GitHub CLI.
+**Requirements**
+Bash (the macOS 3.2 one is fine), Git and the GitHub CLI. Tested on macOS and Ubuntu.
 
 ## Contributing
 
-Issues and pull requests are welcome. Run the tests with `test/run.sh`; they use a stand-in `gh`, so they need no network or GitHub accounts. If you've lost an afternoon to `Repository not found`, a ⭐ helps other people find this.
+Issues and PRs welcome. `test/run.sh` runs the tests against a stand-in `gh`, so you don't need network access or GitHub accounts.
 
 ## License
 
